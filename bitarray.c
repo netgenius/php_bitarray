@@ -9,12 +9,36 @@
 zend_class_entry *bitarray_ce;
 static zend_object_handlers bitarray_object_handlers;
 
+#define NUM_BITS (sizeof(uint32_t) << 3)
+
+// -------------------------------
+// Internal helpers
+// -------------------------------
+static void bitarray_set_bit(bitarray_object *obj, size_t index, zend_bool value)
+{
+    size_t int_index = index / NUM_BITS;
+    uint32_t bit_mask = 1u << (index % NUM_BITS);
+
+    if (value) {
+        obj->data[int_index] |= bit_mask;
+    } else {
+        obj->data[int_index] &= ~bit_mask;
+    }
+}
+
+static zend_bool bitarray_get_bit(bitarray_object *obj, size_t index)
+{
+    size_t int_index = index / NUM_BITS;
+    uint32_t bit_mask = 1u << (index % NUM_BITS);
+    return (obj->data[int_index] & bit_mask) != 0;
+}
+
 // -------------------------------
 // Object handlers
 // -------------------------------
 static void bitarray_free_obj(zend_object *object)
 {
-    bitarray_object *obj = php_bitarray_fetch_object(object); // <- correct
+    bitarray_object *obj = php_bitarray_fetch_object(object);
     if (obj->data) {
         efree(obj->data);
     }
@@ -35,7 +59,51 @@ static zend_object *bitarray_create_obj(zend_class_entry *ce)
 }
 
 // -------------------------------
-// BitArray::__construct(size)
+// ArrayAccess handlers
+// -------------------------------
+static zval *bitarray_read_dimension(zend_object *object, zval *offset, int type, zval *rv)
+{
+    bitarray_object *obj = php_bitarray_fetch_object(object);
+    zend_long index = zval_get_long(offset);
+
+    if (index < 0 || (size_t)index >= obj->size) {
+        zend_throw_exception(NULL, "Index out of range", 0);
+        return NULL;
+    }
+
+    ZVAL_BOOL(rv, bitarray_get_bit(obj, index));
+    return rv;
+}
+
+static void bitarray_write_dimension(zend_object *object, zval *offset, zval *value)
+{
+    bitarray_object *obj = php_bitarray_fetch_object(object);
+    zend_long index = zval_get_long(offset);
+    zend_bool val = zend_is_true(value);
+
+    if (index < 0 || (size_t)index >= obj->size) {
+        zend_throw_exception(NULL, "Index out of range", 0);
+        return;
+    }
+
+    bitarray_set_bit(obj, index, val);
+}
+
+static int bitarray_has_dimension(zend_object *object, zval *offset, int check_empty)
+{
+    bitarray_object *obj = php_bitarray_fetch_object(object);
+    zend_long index = zval_get_long(offset);
+
+    if (index < 0 || (size_t)index >= obj->size) {
+        return 0;
+    }
+
+    zend_bool val = bitarray_get_bit(obj, index);
+    return check_empty ? !val : val;
+}
+
+// -------------------------------
+// PHP Methods
 // -------------------------------
 PHP_METHOD(BitArray, __construct)
 {
@@ -51,63 +119,9 @@ PHP_METHOD(BitArray, __construct)
     }
 
     bitarray_object *obj = Z_BITARRAY_P(getThis());
-    obj->size = (size_t) size;
-    size_t num_ints = (obj->size + 31) / 32;
+    obj->size = (size_t)size;
+    size_t num_ints = (obj->size + NUM_BITS - 1) / NUM_BITS;
     obj->data = ecalloc(num_ints, sizeof(uint32_t));
-}
-
-// -------------------------------
-// BitArray::set(index, value)
-// -------------------------------
-PHP_METHOD(BitArray, set)
-{
-    zend_long index;
-    zend_bool value;
-
-    ZEND_PARSE_PARAMETERS_START(2, 2)
-        Z_PARAM_LONG(index)
-        Z_PARAM_BOOL(value)
-    ZEND_PARSE_PARAMETERS_END();
-
-    bitarray_object *obj = Z_BITARRAY_P(getThis());
-
-    if (index < 0 || (size_t) index >= obj->size) {
-        zend_throw_exception(NULL, "Index out of range", 0);
-        RETURN_THROWS();
-    }
-
-    size_t int_index = index / 32;
-    uint32_t bit_mask = 1u << (index % 32);
-
-    if (value) {
-        obj->data[int_index] |= bit_mask;
-    } else {
-        obj->data[int_index] &= ~bit_mask;
-    }
-}
-
-// -------------------------------
-// BitArray::get(index) -> bool
-// -------------------------------
-PHP_METHOD(BitArray, get)
-{
-    zend_long index;
-
-    ZEND_PARSE_PARAMETERS_START(1, 1)
-        Z_PARAM_LONG(index)
-    ZEND_PARSE_PARAMETERS_END();
-
-    bitarray_object *obj = Z_BITARRAY_P(getThis());
-
-    if (index < 0 || (size_t) index >= obj->size) {
-        zend_throw_exception(NULL, "Index out of range", 0);
-        RETURN_THROWS();
-    }
-
-    size_t int_index = index / 32;
-    uint32_t bit_mask = 1u << (index % 32);
-
-    RETURN_BOOL((obj->data[int_index] & bit_mask) != 0);
 }
 
 // -------------------------------
@@ -117,22 +131,11 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_bitarray_construct, 0, 0, 1)
     ZEND_ARG_TYPE_INFO(0, size, IS_LONG, 0)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_bitarray_set, 0, 0, 2)
-    ZEND_ARG_TYPE_INFO(0, index, IS_LONG, 0)
-    ZEND_ARG_TYPE_INFO(0, value, _IS_BOOL, 0)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_bitarray_get, 0, 0, 1)
-    ZEND_ARG_TYPE_INFO(0, index, IS_LONG, 0)
-ZEND_END_ARG_INFO()
-
 // -------------------------------
 // Method entries
 // -------------------------------
 static const zend_function_entry bitarray_methods[] = {
     PHP_ME(BitArray, __construct, arginfo_bitarray_construct, ZEND_ACC_PUBLIC | ZEND_ACC_CTOR)
-    PHP_ME(BitArray, set,         arginfo_bitarray_set,       ZEND_ACC_PUBLIC)
-    PHP_ME(BitArray, get,         arginfo_bitarray_get,       ZEND_ACC_PUBLIC)
     PHP_FE_END
 };
 
@@ -148,7 +151,13 @@ PHP_MINIT_FUNCTION(bitarray)
 
     memcpy(&bitarray_object_handlers, zend_get_std_object_handlers(), sizeof(zend_object_handlers));
     bitarray_object_handlers.offset = XtOffsetOf(bitarray_object, std);
-    bitarray_object_handlers.free_obj = bitarray_free_obj;
+    bitarray_object_handlers.free_obj        = bitarray_free_obj;
+
+    // ArrayAccess handlers
+    bitarray_object_handlers.read_dimension  = bitarray_read_dimension;
+    bitarray_object_handlers.write_dimension = bitarray_write_dimension;
+    bitarray_object_handlers.has_dimension   = bitarray_has_dimension;
+    bitarray_object_handlers.unset_dimension = NULL;
 
     return SUCCESS;
 }
@@ -159,7 +168,7 @@ PHP_MINIT_FUNCTION(bitarray)
 zend_module_entry bitarray_module_entry = {
     STANDARD_MODULE_HEADER,
     "bitarray",
-    NULL, // no global functions
+    NULL,
     PHP_MINIT(bitarray),
     NULL,
     NULL,
