@@ -6,14 +6,24 @@ class Sieve {
   
   public function __construct(int $limit) {
     //$sieve = array_fill(0, (($limit - 3) >> 1), 0);
-    $sieve = new BitArray(($limit - 2) >> 1);
     //$sieve = str_repeat("0", (($limit - 3) >> 1));
+    $sieve = new BitArray(($limit - 2) >> 1);
 
     $limit_sqrt = floor(sqrt($limit));
     for ($n = 3; $n < $limit_sqrt; $n += 2) {
       if (($sieve[($n - 3) >> 1] ?? 0) == 0) {
-        for ($np = ($n * $n); $np < $limit; $np += ($n * 2)) {
-          $sieve[($np - 3) >> 1] = 1;
+        if (0) {
+          for ($np = ($n * $n); $np < $limit; $np += ($n * 2)) {
+            $sieve[($np - 3) >> 1] = 1;
+          }
+        }
+        else {
+          // Flag the non-primes.
+          $np_first = (($n * $n) - 3) >> 1;
+          $np_last = ($limit - 4) >> 1;
+          for (; $np_first <= $np_last; $np_first += $n) {
+            $sieve[$np_first] = 1;
+          }
         }
       }
     }
@@ -37,8 +47,13 @@ class Sieve {
         }
       }
     }
-    echo "\nExpected 664578 primes, last: 9999991, sum: 279209790387274";
+
     echo "\nFound $count primes, last: $last, sum: $sum\n";
+    if ($limit == 100000000) {
+      if ($sum != 279209790387274 || $count != 5761454 || $last != 99999989) {
+        throw new Exception("Sieve error");
+      }
+    } 
     return $count;
   }
 }
