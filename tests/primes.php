@@ -1,101 +1,86 @@
 <?php
 
 require __DIR__ . '/../vendor/autoload.php';
+
 use chdemko\BitArray\BitArray as Chdemko_BitArray;
+
 
 class StringBitArray implements ArrayAccess, Countable
 {
-    private int $size;
-    private string $data;
+  private int $size;
+  private string $data;
 
-    public function __construct(int $size)
-    {
-        if ($size <= 0) {
-            throw new InvalidArgumentException("Size must be greater than zero");
-        }
-
-        $this->size = $size;
-        $this->data = str_repeat(chr(0), ceil($size / 8));
+  public function __construct(int $size)
+  {
+    if ($size <= 0) {
+      throw new InvalidArgumentException("Size must be greater than zero");
     }
 
-    // ArrayAccess: check if index exists
-    public function offsetExists($offset): bool
-    {
-        return $this->isValidIndex($offset);
-    }
+    $this->size = $size;
+    $this->data = str_repeat(chr(0), ceil($size / 8));
+  }
 
-    // ArrayAccess: read value
-    public function offsetGet($offset): bool
-    {
-        //$this->assertValidIndex($offset);
-        return (ord($this->data[$offset >> 3]) >> ($offset & 7)) & 1;
-    }
+  // ArrayAccess: check if index exists
+  public function offsetExists($offset): bool
+  {
+    return is_int($offset) && $offset >= 0 && $offset < $this->size;
+  }
 
-    // ArrayAccess: write value
-    public function offsetSet($offset, $value): void
-    {
-      //$this->assertValidIndex($offset);
+  // ArrayAccess: read value
+  public function offsetGet($offset): bool
+  {
+    return (ord($this->data[$offset >> 3]) >> ($offset & 7)) & 1;
+  }
 
-      // Note tried unpack() and pack() here but that was much slower.
-      $mask = (1 << ($offset & 7));
-      $bits = ord($this->data[$offset >> 3]);
-      $this->data[$offset >> 3] = chr($value ? ($bits | $mask) : ($bits & ~$mask));
-    }
+  // ArrayAccess: write value
+  public function offsetSet($offset, $value): void
+  {
+    // Note tried unpack() and pack() here but that was much slower.
+    $mask = (1 << ($offset & 7));
+    $bits = ord($this->data[$offset >> 3]);
+    $this->data[$offset >> 3] = chr($value ? ($bits | $mask) : ($bits & ~$mask));
+  }
 
-    // ArrayAccess: unset value
-    public function offsetUnset($offset): void
-    {
-      $this->assertValidIndex($offset);
-      // This is all we can do to "unset" a bit - set it to 0.
-      $this->offsetSet($offset, 0);
-    }
+  // ArrayAccess: unset value
+  public function offsetUnset($offset): void
+  {
+    // This is all we can do to "unset" a bit - set it to 0.
+    $this->offsetSet($offset, 0);
+  }
 
-    // Countable
-    public function count(): int
-    {
-        return $this->size;
-    }
-
-    // Helpers
-    private function isValidIndex($offset): bool
-    {
-        return is_int($offset) && $offset >= 0 && $offset < $this->size;
-    }
-
-    private function assertValidIndex($offset): void
-    {
-        if (!$this->isValidIndex($offset)) {
-            throw new OutOfRangeException("Index out of range: $offset");
-        }
-    }
+  // Countable
+  public function count(): int
+  {
+    return $this->size;
+  }
 }
 
-class Sieve {
-
+class Sieve
+{
   private $sieve, $limit;
 
-  public function __construct(int $limit, int $storage) {
-
+  public function __construct(int $limit, int $storage)
+  {
     // Storage needed is half the limit (odd numbers only).
     $size = ($limit + 1) >> 1;
 
     if ($storage == 1) {
-      // Standard PHP array.
+      // Standard PHP array (fast, but very memory hungry).
       $sieve = array_fill(0, $size, 0);
     } elseif ($storage == 2) {
-      // PHP SplFixedArray.
+      // PHP SplFixedArray (fast, slightly less memory hungry).
       $sieve = new SplFixedArray($size);
     } elseif ($storage == 3) {
-      // PHP string as an array (one bit per byte).
+      // PHP string as an array (fast, high memory usage).
       $sieve = str_repeat('0', $size);
     } elseif ($storage == 4) {
-      // Local StringBitArray class (8 bits per byte).
+      // Local StringBitArray class (slow, minimal memory usage).
       $sieve = new StringBitArray($size);
     } elseif ($storage == 5) {
-      // Chdemko_BitArray.
+      // Chdemko_BitArray (very slow, high memory usage).
       $sieve = Chdemko_BitArray::fromString(str_repeat('0', $size));
     } else {
-      // BitArray extension.
+      // BitArray extension (very fast, minimal memory usage)
       $sieve = new BitArray($size);
     }
 
@@ -116,10 +101,11 @@ class Sieve {
     $this->sieve = $sieve;
   }
 
-  public function report(int $print = 0) {
+  public function report(int $print = 0)
+  {
     $sieve = $this->sieve;
     $limit = $this->limit;
-    
+
     // Include the prime 2 in results.
     $count = 1;
     $last = $check = 2;
@@ -139,15 +125,15 @@ class Sieve {
     if ($limit == 100000000) {
       if ($check != 0x12d9d692ec972a57 || $count != 5761455 || $last != 99999989) {
         printf("check: %x count: %d last: %d\n", $check, $count, $last);
-        throw new Exception("Sieve error");
+        throw new Exception("Failed verification checks");
       }
     } elseif ($limit == 500000000) {
       if ($check != 0x3f6acc823798e123 || $count != 26355867 || $last != 499999993) {
         printf("check: %x count: %d last: %d\n", $check, $count, $last);
-        throw new Exception("Sieve error");
+        throw new Exception("Failed verification checks");
       }
     }
-    
+
     return $count;
   }
 }
@@ -169,14 +155,15 @@ $storage = $argv[1] ?? 0;
 if ($storage < 1 || $storage > 6) {
   echo "Usage: php $argv[0] 1|2|3|4|5|6\n";
   foreach ($storages as $k => $v) {
-    echo "  $k = $v\n";
+    echo "  $k: $v\n";
   }
   exit(1);
 }
 
 //$limit=500000000;
-$limit=100000000;
-printf("Finding all primes below %s using '%s' storage...\n",
+$limit = 100000000;
+printf(
+  "Finding all primes below %s using '%s' storage...\n",
   number_format($limit),
   $storages[$storage]
 );
@@ -186,7 +173,8 @@ $sieve = new Sieve($limit, $storage);
 $t = microtime(true) - $t;
 
 $count = $sieve->report(0);
-printf("Found %s primes at %s million/second\n",
+printf(
+  "Found %s primes at %s million/second\n",
   number_format($count),
   number_format($count / 1000000 / $t, 1),
 );
