@@ -3,27 +3,29 @@
 class Sieve {
 
   private $sieve, $limit;
-  
-  public function __construct(int $limit) {
-    //$sieve = array_fill(0, (($limit - 3) >> 1), 0);
-    //$sieve = str_repeat("0", (($limit - 3) >> 1));
-    $sieve = new BitArray(($limit - 2) >> 1);
 
+  public function __construct(int $limit, int $type = 3) {
+
+    if ($type == 1) {
+      // Standard PHP array.
+      $sieve = array_fill(0, ($limit >> 1), 0);
+    } elseif ($type == 2) {
+      // String as array.
+      $sieve = str_repeat('0', ($limit >> 1));
+    } else {
+      // BitArray extension.
+      $sieve = new BitArray($limit >> 1);
+    }
+
+    // Optimised Sieve of Eratosthenes.
     $limit_sqrt = floor(sqrt($limit));
     for ($n = 3; $n < $limit_sqrt; $n += 2) {
-      if (($sieve[($n - 3) >> 1] ?? 0) == 0) {
-        if (0) {
-          for ($np = ($n * $n); $np < $limit; $np += ($n * 2)) {
-            $sieve[($np - 3) >> 1] = 1;
-          }
-        }
-        else {
-          // Flag the non-primes.
-          $np_first = (($n * $n) - 3) >> 1;
-          $np_last = ($limit - 4) >> 1;
-          for (; $np_first <= $np_last; $np_first += $n) {
-            $sieve[$np_first] = 1;
-          }
+      if ($sieve[($n) >> 1] == false) {
+        // Flag multiples of $n as non-primes.
+        $idx = (($n * $n)) >> 1;
+        $idx_last = ($limit - 1) >> 1;
+        for (; $idx <= $idx_last; $idx += $n) {
+          $sieve[$idx] = true;
         }
       }
     }
@@ -35,12 +37,12 @@ class Sieve {
   public function report(int $print = 0) {
     $sieve = $this->sieve;
     $limit = $this->limit;
-    $sum = $count = $last = 0;
+    $check = $count = $last = 0;
     for ($n = 3; $n < $limit; $n += 2) {
-      if (($sieve[($n - 3) >> 1] ?? 0) == 0) {
+      if (($sieve[($n) >> 1] ?? 0) == 0) {
         $prime = $n;
         $count++;
-        $sum += $prime;
+        $check ^= $prime;
         $last = $prime;
         if ($prime < $print) {
           echo "$prime ";
@@ -48,9 +50,9 @@ class Sieve {
       }
     }
 
-    echo "\nFound $count primes, last: $last, sum: $sum\n";
     if ($limit == 100000000) {
-      if ($sum != 279209790387274 || $count != 5761454 || $last != 99999989) {
+      if ($check != 17422160 || $count != 5761454 || $last != 99999989) {
+        echo "check: $check count: $count last: $last\n";
         throw new Exception("Sieve error");
       }
     } 
@@ -58,14 +60,31 @@ class Sieve {
   }
 }
 
+// Process command line parameters.
+$type = $argv[1] ?? 0;
+if ($type < 1 || $type > 3) {
+  echo "Usage: php $argv[0] 1|2|3\n";
+  echo " 1 = Standard array\n";
+  echo " 2 = String as array\n";
+  echo " 3 = BitArray extension\n";
+  exit(1);
+}
+
 $limit=100000000;
+printf("Finding all primes up to %s using storage type %d ...\n",
+  number_format($limit),
+  $type,
+);
+
 $t = microtime(true);
-$sieve = new Sieve($limit);
-//$sieve = new BitSieve($limit);
+$sieve = new Sieve($limit, $type);
 $t = microtime(true) - $t;
 
-$count = $sieve->report(1000);
-echo round($count / 1000000 / $t, 2) . " million/second\n";
+$count = $sieve->report(0);
+printf("Found %s primes at %s million/second\n",
+  number_format($count),
+  number_format($count / 1000000 / $t, 1),
+);
 
 $mem = memory_get_peak_usage(true) >> 20;
-print "Peak memory $mem MB\n";
+printf("Peak memory used: %s MB\n", number_format($mem));

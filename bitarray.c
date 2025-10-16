@@ -9,7 +9,7 @@
 zend_class_entry *bitarray_ce;
 static zend_object_handlers bitarray_object_handlers;
 
-#define NUM_BITS (sizeof(uint32_t) << 3)
+#define NUM_BITS (sizeof(bitarray_bits_t) * 8)
 
 // -------------------------------
 // Internal helpers
@@ -17,7 +17,7 @@ static zend_object_handlers bitarray_object_handlers;
 static void bitarray_set_bit(bitarray_object *obj, size_t index, zend_bool value)
 {
     size_t int_index = index / NUM_BITS;
-    uint32_t bit_mask = 1u << (index % NUM_BITS);
+    bitarray_bits_t bit_mask = (bitarray_bits_t) 1 << (index % NUM_BITS);
 
     if (value) {
         obj->data[int_index] |= bit_mask;
@@ -29,7 +29,7 @@ static void bitarray_set_bit(bitarray_object *obj, size_t index, zend_bool value
 static zend_bool bitarray_get_bit(bitarray_object *obj, size_t index)
 {
     size_t int_index = index / NUM_BITS;
-    uint32_t bit_mask = 1u << (index % NUM_BITS);
+    bitarray_bits_t bit_mask = (bitarray_bits_t) 1 << (index % NUM_BITS);
     return (obj->data[int_index] & bit_mask) != 0;
 }
 
@@ -89,19 +89,6 @@ static void bitarray_write_dimension(zend_object *object, zval *offset, zval *va
     bitarray_set_bit(obj, index, val);
 }
 
-static int bitarray_has_dimension(zend_object *object, zval *offset, int check_empty)
-{
-    bitarray_object *obj = php_bitarray_fetch_object(object);
-    zend_long index = zval_get_long(offset);
-
-    if (index < 0 || (size_t)index >= obj->size) {
-        return 0;
-    }
-
-    zend_bool val = bitarray_get_bit(obj, index);
-    return check_empty ? !val : val;
-}
-
 // -------------------------------
 // PHP Methods
 // -------------------------------
@@ -114,14 +101,14 @@ PHP_METHOD(BitArray, __construct)
     ZEND_PARSE_PARAMETERS_END();
 
     if (size <= 0) {
-        zend_throw_exception(NULL, "Size must be positive", 0);
+        zend_throw_exception(NULL, "Size must be greater than 0", 0);
         RETURN_THROWS();
     }
 
     bitarray_object *obj = Z_BITARRAY_P(getThis());
     obj->size = (size_t)size;
     size_t num_ints = (obj->size + NUM_BITS - 1) / NUM_BITS;
-    obj->data = ecalloc(num_ints, sizeof(uint32_t));
+    obj->data = ecalloc(num_ints, sizeof(bitarray_bits_t));
 }
 
 // -------------------------------
@@ -156,7 +143,7 @@ PHP_MINIT_FUNCTION(bitarray)
     // ArrayAccess handlers
     bitarray_object_handlers.read_dimension  = bitarray_read_dimension;
     bitarray_object_handlers.write_dimension = bitarray_write_dimension;
-    bitarray_object_handlers.has_dimension   = bitarray_has_dimension;
+    bitarray_object_handlers.has_dimension   = NULL;
     bitarray_object_handlers.unset_dimension = NULL;
 
     return SUCCESS;

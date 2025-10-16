@@ -11,9 +11,11 @@ extern zend_module_entry bitarray_module_entry;
 // ------------------------
 // BitArray object struct
 // ------------------------
+typedef uint32_t bitarray_bits_t;
+
 typedef struct _bitarray_object {
-    size_t size;        // number of bits
-    uint32_t *data;     // storage as 32-bit integers
+    size_t size;               // number of bits
+    bitarray_bits_t *data;     // storage as integers
     zend_object std;
 } bitarray_object;
 
