@@ -63,3 +63,6 @@ tags
 # Local user environment
 phpunit.xml
 bitarray.ini
+
+# Composer.
+vendor/
