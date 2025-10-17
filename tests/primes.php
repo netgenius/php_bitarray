@@ -1,10 +1,10 @@
 <?php
+declare(strict_types=1);
 
 require __DIR__ . '/PhpBitArray.php';
 use PhpBitArray\ArrayBitArray;
 use PhpBitArray\SplBitArray;
 use PhpBitArray\StringBitArray;
-//use BitArray;
 
 require __DIR__ . '/../vendor/autoload.php';
 use chdemko\BitArray\BitArray as Chdemko_BitArray;
@@ -165,11 +165,12 @@ for ($i = $first; $i <= $last; $i++) {
   for ($j = 1; $j <= $loops; $j++) {
     memory_reset_peak_usage();
     $sieve = new Sieve($limit, $i);
+
     $t = microtime(true);
     $sieve->build();
     $t = microtime(true) - $t;
-    $mem = memory_get_peak_usage(true);
 
+    $mem = memory_get_peak_usage(true);
     $count = $sieve->report(0);
     unset($sieve);
 

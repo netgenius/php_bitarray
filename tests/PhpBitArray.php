@@ -33,26 +33,26 @@ abstract class PhpBitArray implements ArrayAccess, Countable
   }
 
   // ArrayAccess: check if index exists
-  public function offsetExists($offset): bool
+  public function offsetExists(mixed $offset): bool
   {
     return (is_int($offset) && $offset >= 0 && $offset < $this->size);
   }
 
   // ArrayAccess: unset value
-  public function offsetUnset($offset): void
+  public function offsetUnset(mixed $offset): void
   {
     // This is all we can do to "unset" a bit - set it to 0.
     $this->offsetSet($offset, 0);
   }
 
   // ArrayAccess: read value
-  public function offsetGet($offset): int
+  public function offsetGet(mixed $offset): int
   {
     return (($this->data[$offset >> self::DIVIDE_BY_64]) >> ($offset & self::MASK_64_BITS)) & 1;
   }
 
   // ArrayAccess: write value
-  public function offsetSet($offset, $value): void
+  public function offsetSet(mixed $offset, mixed $value): void
   {
     if ($value) {
       $this->data[$offset >> self::DIVIDE_BY_64] |= (1 << ($offset & self::MASK_64_BITS));
@@ -67,9 +67,10 @@ abstract class PhpBitArray implements ArrayAccess, Countable
     return $this->size;
   }
 
-  protected function sizeCalc(int $size, int $bitsPerElement): int
+  // Helper to calculate the number of elements needed (rounding up).
+  protected function sizeCalc(int $size, int $bitsPerElement = self::BITS_PER_INT): int
   {
-    return (int) intdiv($size + $bitsPerElement - 1, $bitsPerElement);
+    return intdiv($size + $bitsPerElement - 1, $bitsPerElement);
   }
 }
 
@@ -78,7 +79,7 @@ class ArrayBitArray extends PhpBitArray
   public function __construct(int $size)
   {
     parent::__construct($size);
-    $this->data = array_fill(0, self::sizeCalc($size, self::BITS_PER_INT), 0);
+    $this->data = array_fill(0, self::sizeCalc($size), 0);
   }
 }
 
@@ -87,7 +88,7 @@ class SplBitArray extends PhpBitArray
   public function __construct(int $size)
   {
     parent::__construct($size);
-    $this->data = new SplFixedArray(self::sizeCalc($size, self::BITS_PER_INT));
+    $this->data = new SplFixedArray(self::sizeCalc($size));
   }
 }
 
