@@ -167,20 +167,23 @@ for ($i = $first; $i <= $last; $i++) {
 
   for ($j = 1; $j <= $loops; $j++) {
     memory_reset_peak_usage();
+
+    $mem = memory_get_peak_usage(false);
     $sieve = new Sieve($limit, $i);
 
     $t = microtime(true);
     $sieve->build();
     $t = microtime(true) - $t;
+    $mem = memory_get_peak_usage(false) - $mem;
 
-    $mem = memory_get_peak_usage(false);
     $count = $sieve->report(0);
     unset($sieve);
 
+    // Calculate memory that would be needed by ideal storage.
     $mem_needed = (($limit - 1) / 2) / 8;
     printf(
-      "  [$j] Peak memory: %s MB (%s%% overhead). Speed: %s million/second. Found: %s primes.\n",
-      number_format($mem >> 20),
+      "  [$j] Storage memory: %s MB (%s%% overhead). Speed: %s million/second. Found: %s primes.\n",
+      number_format($mem / 1024 / 1024, 2),
       number_format(($mem / $mem_needed - 1) * 100),
       number_format($count / 1000000 / $t, 2),
       number_format($count),
