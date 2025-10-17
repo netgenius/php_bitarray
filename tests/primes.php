@@ -5,19 +5,20 @@ require __DIR__ . '/../vendor/autoload.php';
 use chdemko\BitArray\BitArray as Chdemko_BitArray;
 
 
-class StringBitArray implements ArrayAccess, Countable
+abstract class BitArray2 implements ArrayAccess, Countable
 {
   private int $size;
-  private string $data;
+  private const BITS_PER_BYTE = 8;
+  private int $bits_per_element;
+  private mixed $data;
 
   public function __construct(int $size)
   {
     if ($size <= 0) {
       throw new InvalidArgumentException("Size must be greater than zero");
     }
-
+    //$this->bits_per_element = 8 * PHP_INT_SIZE;
     $this->size = $size;
-    $this->data = str_repeat(chr(0), ceil($size / 8));
   }
 
   // ArrayAccess: check if index exists
@@ -27,19 +28,9 @@ class StringBitArray implements ArrayAccess, Countable
   }
 
   // ArrayAccess: read value
-  public function offsetGet($offset): bool
-  {
-    return (ord($this->data[$offset >> 3]) >> ($offset & 7)) & 1;
-  }
-
+  abstract public function offsetGet($offset): bool;
   // ArrayAccess: write value
-  public function offsetSet($offset, $value): void
-  {
-    // Note tried unpack() and pack() here but that was much slower.
-    $mask = (1 << ($offset & 7));
-    $bits = ord($this->data[$offset >> 3]);
-    $this->data[$offset >> 3] = chr($value ? ($bits | $mask) : ($bits & ~$mask));
-  }
+  abstract public function offsetSet($offset, $value): void;
 
   // ArrayAccess: unset value
   public function offsetUnset($offset): void
@@ -55,9 +46,41 @@ class StringBitArray implements ArrayAccess, Countable
   }
 }
 
+class StringBitArray extends BitArray2
+{
+  private int $size;
+  private string $data;
+
+
+  // Was 0.76 seconds for 100 million primes.
+  public function __construct(int $size)
+  {
+    echo "Initializing StringBitArray of size $size...\n";
+    parent::__construct($size);
+    $this->data = str_repeat(chr(0), ceil($size / 8));
+  }
+
+  // ArrayAccess: read value
+  public function offsetGet($offset): bool
+  {
+    return (ord($this->data[$offset >> 3]) >> ($offset & 7)) & 1;
+  }
+
+  // ArrayAccess: write value
+  public function offsetSet($offset, $value): void
+  {
+    // Note: tried, but there doesn't seem to be any faster way to do this.
+    $mask = (1 << ($offset & 7));
+    $bits = ord($this->data[$offset >> 3]);
+    $this->data[$offset >> 3] = chr($value ? ($bits | $mask) : ($bits & ~$mask));
+  }
+}
+
+
 class Sieve
 {
-  private $sieve, $limit;
+  private mixed $sieve;
+  private int $limit;
 
   public function __construct(int $limit, int $storage)
   {
@@ -176,7 +199,7 @@ $count = $sieve->report(0);
 printf(
   "Found %s primes at %s million/second\n",
   number_format($count),
-  number_format($count / 1000000 / $t, 1),
+  number_format($count / 1000000 / $t, 2),
 );
 
 $mem = memory_get_peak_usage(true);
