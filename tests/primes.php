@@ -1,105 +1,13 @@
 <?php
 
+require __DIR__ . '/PhpBitArray.php';
+use PhpBitArray\ArrayBitArray;
+use PhpBitArray\SplBitArray;
+use PhpBitArray\StringBitArray;
+//use BitArray;
+
 require __DIR__ . '/../vendor/autoload.php';
-
 use chdemko\BitArray\BitArray as Chdemko_BitArray;
-
-
-class BitArray2 implements ArrayAccess, Countable
-{
-  protected const BITS_PER_INT = 8 * PHP_INT_SIZE;
-  protected const DIVIDE_BY_64 = (PHP_INT_SIZE == 4) ? 5 : 6;
-  protected const MASK_64_BITS = self::BITS_PER_INT - 1;
-
-  protected int $size;
-  protected mixed $data;
-
-  public function __construct(int $size)
-  {
-    if ($size <= 0) {
-      throw new InvalidArgumentException("Size must be greater than zero");
-    }
-    $this->size = $size;
-  }
-
-  // ArrayAccess: check if index exists
-  public function offsetExists($offset): bool
-  {
-    return (is_int($offset) && $offset >= 0 && $offset < $this->size);
-  }
-
-  // ArrayAccess: unset value
-  public function offsetUnset($offset): void
-  {
-    // This is all we can do to "unset" a bit - set it to 0.
-    $this->offsetSet($offset, 0);
-  }
-
-  // ArrayAccess: read value
-  public function offsetGet($offset): bool
-  {
-    return (($this->data[$offset >> self::DIVIDE_BY_64]) >> ($offset & self::MASK_64_BITS)) & 1;
-  }
-
-  // ArrayAccess: write value
-  public function offsetSet($offset, $value): void
-  {
-    if ($value) {
-      $this->data[$offset >> self::DIVIDE_BY_64] |= (1 << ($offset & self::MASK_64_BITS));
-    } else {
-      $this->data[$offset >> self::DIVIDE_BY_64] &= ~(1 << ($offset & self::MASK_64_BITS));
-    }
-  }
-
-  // Countable
-  public function count(): int
-  {
-    return $this->size;
-  }
-}
-
-class ArrayBitArray extends BitArray2
-{
-  public function __construct(int $size)
-  {
-    parent::__construct($size);
-    $this->data = array_fill(0, ceil($size / self::BITS_PER_INT), 0);
-  }
-}
-
-class SplBitArray extends BitArray2
-{
-  public function __construct(int $size)
-  {
-    parent::__construct($size);
-    $this->data = new SplFixedArray(ceil($size / self::BITS_PER_INT));
-  }
-}
-
-class StringBitArray extends BitArray2
-{
-  public function __construct(int $size)
-  {
-    parent::__construct($size);
-    $this->data = str_repeat(chr(0), ceil($size / 8));
-  }
-
-  // ArrayAccess: read value
-  public function offsetGet($offset): bool
-  {
-    return (ord($this->data[$offset >> 3]) >> ($offset & 7)) & 1;
-  }
-
-  // ArrayAccess: write value
-  public function offsetSet($offset, $value): void
-  {
-    if ($value) {
-      $this->data[$offset >> 3] = chr(ord($this->data[$offset >> 3]) | (1 << ($offset & 7)));
-    } else {
-      $this->data[$offset >> 3] = chr(ord($this->data[$offset >> 3]) & ~(1 << ($offset & 7)));
-    }
-  }
-}
 
 class Sieve
 {
@@ -142,16 +50,16 @@ class Sieve
     $this->sieve = $sieve;
   }
 
-  // Optimised Sieve of Eratosthenes.
+  // Build our (optimised) Sieve of Eratosthenes.
   public function build()
   {
     $limit_sqrt = floor(sqrt($this->limit));
+    $idx_last = ($this->limit - 1) >> 1;
+
     for ($n = 3; $n < $limit_sqrt; $n += 2) {
       if ($this->sieve[$n >> 1] == false) {
         // Flag multiples of $n as non-primes.
-        $idx = ($n * $n) >> 1;
-        $idx_last = ($this->limit - 1) >> 1;
-        for (; $idx <= $idx_last; $idx += $n) {
+        for ($idx = ($n * $n) >> 1; $idx <= $idx_last; $idx += $n) {
           $this->sieve[$idx] = true;
         }
       }
@@ -166,12 +74,14 @@ class Sieve
     // Include the prime 2 in results.
     $count = 1;
     $last = $check = 2;
+    $context = hash_init('md5');
 
     for ($n = 3; $n < $limit; $n += 2) {
       if (($this->sieve[$n >> 1]) == 0) {
         $prime = $n;
         $count++;
         $check = (($check << 1) & 0x7fffffffffffffff) ^ $prime;
+        hash_update($context, "$prime");
         $last = $prime;
         if ($prime < $print) {
           echo "$prime ";
@@ -179,18 +89,26 @@ class Sieve
       }
     }
 
-    if ($limit == 100000000) {
-      if ($check != 0x12d9d692ec972a57 || $count != 5761455 || $last != 99999989) {
-        printf("check: %x count: %d last: %d\n", $check, $count, $last);
-        throw new Exception("Failed verification checks");
-      }
-    } elseif ($limit == 500000000) {
-      if ($check != 0x3f6acc823798e123 || $count != 26355867 || $last != 499999993) {
-        printf("check: %x count: %d last: %d\n", $check, $count, $last);
-        throw new Exception("Failed verification checks");
+    $md5hash = hash_final($context);
+    $expected = [
+      100 => 'e8947ccab104806a55c163fe6b70868b',
+      1000 => 'a34cb0b83d275505152b6a4a64dcf8e2',
+      10000 => '50c97f40b0d59694c25a2e965119efe8',
+      100000 => '7ed99b3a238c1cec2319c44842aaac30',
+      1000000 => '56bf6278c0864d578a03f12fa552d607',
+      10000000 => 'a06eadab8fb4c8d7753a06029b1c2b23',
+      100000000 => '7ed04acc90324fb31b69b44aa8ea5290',
+      1000000000 => '6cad4c354d3fd3a39f002f9d51dd2f5c',
+    ];
+
+    if (isset($expected[$limit])) {
+      if ($md5hash != $expected[$limit]) {
+        printf("md5: %s count: %d last: %d\n", $md5hash, $count, $last);
+        throw new Exception("Failed verification check");
       }
     } else {
-      echo "No verification for limit $limit\n";
+      echo "Verification check for limit $limit is not defined - md5: $md5hash\n";
+      echo "Checks are defined for limits: " . implode(', ', array_keys($expected)) . "\n";
     }
 
     return $count;
@@ -216,15 +134,16 @@ $storages = [
 
 $storage = $argv[1] ?? -1;
 if (!isset($storages[$storage])) {
-  printf("Usage: php %s %s\n", $argv[0], implode('|', array_keys($storages)));
+  printf("Usage: php %s %s [limit] [repeats]\n", $argv[0], implode('|', array_keys($storages)));
   foreach ($storages as $k => $v) {
     echo "  $k: $v\n";
   }
   exit(1);
 }
 
-$limit = 500000000;
-$limit = 100000000;
+$storage = $argv[1] ?? 0;
+$limit = $argv[2] ?? 10000000;
+$loops = $argv[3] ?? 3;
 
 printf(
   "Finding primes below %s - storage for %s bits is needed. Method: '%s' storage.\n",
@@ -243,7 +162,7 @@ for ($i = $first; $i <= $last; $i++) {
     printf("%s: \n", $storages[$i]);
   }
 
-  for ($j = 1; $j <= 3; $j++) {
+  for ($j = 1; $j <= $loops; $j++) {
     memory_reset_peak_usage();
     $sieve = new Sieve($limit, $i);
     $t = microtime(true);
