@@ -5,20 +5,21 @@ require __DIR__ . '/../vendor/autoload.php';
 use chdemko\BitArray\BitArray as Chdemko_BitArray;
 
 
-abstract class BitArray2 implements ArrayAccess, Countable
+class BitArray2 implements ArrayAccess, Countable
 {
+  private const BITS_PER_INTEGER = 8 * PHP_INT_SIZE;
+  private const INT_DIV_SHIFT = (PHP_INT_SIZE == 4) ? 5 : 6;
+
   private int $size;
-  private const BITS_PER_BYTE = 8;
-  private int $bits_per_element;
-  private mixed $data;
+  protected mixed $data;
 
   public function __construct(int $size)
   {
     if ($size <= 0) {
       throw new InvalidArgumentException("Size must be greater than zero");
     }
-    //$this->bits_per_element = 8 * PHP_INT_SIZE;
     $this->size = $size;
+    echo "BitArray2 of size $size created. Bits per element: " . self::BITS_PER_INTEGER . "\n";
   }
 
   // ArrayAccess: check if index exists
@@ -27,16 +28,30 @@ abstract class BitArray2 implements ArrayAccess, Countable
     return is_int($offset) && $offset >= 0 && $offset < $this->size;
   }
 
-  // ArrayAccess: read value
-  abstract public function offsetGet($offset): bool;
-  // ArrayAccess: write value
-  abstract public function offsetSet($offset, $value): void;
-
   // ArrayAccess: unset value
   public function offsetUnset($offset): void
   {
     // This is all we can do to "unset" a bit - set it to 0.
     $this->offsetSet($offset, 0);
+  }
+
+  // ArrayAccess: read value
+  public function offsetGet($offset): bool
+  {
+    //echo "base offsetGet called for offset $offset\n";
+    //return 0;
+    return (($this->data[$offset >> self::INT_DIV_SHIFT]) >> ($offset & (self::BITS_PER_INTEGER - 1))) & 1;
+  }
+
+  // ArrayAccess: write value
+  public function offsetSet($offset, $value): void
+  {
+    // Note: tried, but there doesn't seem to be any faster way to do this.
+    if ($value) {
+      $this->data[$offset >> self::INT_DIV_SHIFT] |= (1 << ($offset & (self::BITS_PER_INTEGER - 1)));
+    } else {
+      $this->data[$offset >> self::INT_DIV_SHIFT] &= ~(1 << ($offset & (self::BITS_PER_INTEGER - 1)));
+    }
   }
 
   // Countable
@@ -46,16 +61,28 @@ abstract class BitArray2 implements ArrayAccess, Countable
   }
 }
 
-class StringBitArray extends BitArray2
+class ArrayBitArray extends BitArray2
 {
-  private int $size;
-  private string $data;
-
-
-  // Was 0.76 seconds for 100 million primes.
   public function __construct(int $size)
   {
-    echo "Initializing StringBitArray of size $size...\n";
+    parent::__construct($size);
+    $this->data = array_fill(0, ceil($size / self::BITS_PER_INTEGER), 0);
+  }
+}
+
+class SplBitArray extends BitArray2
+{
+  public function __construct(int $size)
+  {
+    parent::__construct($size);
+    $this->data = new SplFixedArray(ceil($size / self::BITS_PER_INTEGER));
+  }
+}
+
+class StringBitArray extends BitArray2
+{
+  public function __construct(int $size)
+  {
     parent::__construct($size);
     $this->data = str_repeat(chr(0), ceil($size / 8));
   }
@@ -70,12 +97,13 @@ class StringBitArray extends BitArray2
   public function offsetSet($offset, $value): void
   {
     // Note: tried, but there doesn't seem to be any faster way to do this.
-    $mask = (1 << ($offset & 7));
-    $bits = ord($this->data[$offset >> 3]);
-    $this->data[$offset >> 3] = chr($value ? ($bits | $mask) : ($bits & ~$mask));
+    if ($value) {
+      $this->data[$offset >> 3] = chr(ord($this->data[$offset >> 3]) | (1 << ($offset & 7)));
+    } else {
+      $this->data[$offset >> 3] = chr(ord($this->data[$offset >> 3]) & ~(1 << ($offset & 7)));
+    }
   }
 }
-
 
 class Sieve
 {
@@ -99,6 +127,7 @@ class Sieve
     } elseif ($storage == 4) {
       // Local StringBitArray class (slow, minimal memory usage).
       $sieve = new StringBitArray($size);
+      //$sieve = new ArrayBitArray($size);
     } elseif ($storage == 5) {
       // Chdemko_BitArray (very slow, high memory usage).
       $sieve = Chdemko_BitArray::fromString(str_repeat('0', $size));
