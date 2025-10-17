@@ -141,9 +141,10 @@ if (!isset($storages[$storage])) {
   exit(1);
 }
 
-$storage = $argv[1] ?? 0;
-$limit = $argv[2] ?? 10000000;
-$loops = $argv[3] ?? 3;
+// Read command line parameters, convert to int.
+$storage = intval($argv[1] ?? 0);
+$limit = intval($argv[2] ?? 10000000);
+$loops = intval($argv[3] ?? 3);
 
 printf(
   "Finding primes below %s - storage for %s bits is needed. Method: '%s' storage.\n",
@@ -157,6 +158,8 @@ $first = ($storage == 0) ? 1 : $storage;
 $last = ($storage == 0) ? array_key_last($storages) : $storage;
 
 for ($i = $first; $i <= $last; $i++) {
+  // Chdemko BitArray is too slow for large limits.
+  if ($i == 7 && $limit > 1000000) continue; 
 
   if ($first != $last) {
     printf("%s: \n", $storages[$i]);
@@ -170,13 +173,15 @@ for ($i = $first; $i <= $last; $i++) {
     $sieve->build();
     $t = microtime(true) - $t;
 
-    $mem = memory_get_peak_usage(true);
+    $mem = memory_get_peak_usage(false);
     $count = $sieve->report(0);
     unset($sieve);
 
+    $mem_needed = (($limit - 1) / 2) / 8;
     printf(
-      "  [$j] Peak memory: %s MB. Speed: %s million/second. Found: %s primes.\n",
+      "  [$j] Peak memory: %s MB (%s%% overhead). Speed: %s million/second. Found: %s primes.\n",
       number_format($mem >> 20),
+      number_format(($mem / $mem_needed - 1) * 100),
       number_format($count / 1000000 / $t, 2),
       number_format($count),
     );
