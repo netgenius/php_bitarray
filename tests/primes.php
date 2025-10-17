@@ -143,7 +143,8 @@ class Sieve
   }
 
   // Optimised Sieve of Eratosthenes.
-  public function build() {
+  public function build()
+  {
     $limit_sqrt = floor(sqrt($this->limit));
     for ($n = 3; $n < $limit_sqrt; $n += 2) {
       if ($this->sieve[$n >> 1] == false) {
@@ -188,8 +189,7 @@ class Sieve
         printf("check: %x count: %d last: %d\n", $check, $count, $last);
         throw new Exception("Failed verification checks");
       }
-    }
-    else {
+    } else {
       echo "No verification for limit $limit\n";
     }
 
@@ -203,18 +203,19 @@ class Sieve
 
 // Process command line parameters.
 $storages = [
-  1 => 'array',
-  2 => 'SplFixedArray',
-  3 => 'string',
-  4 => 'array bitarray',
-  5 => 'SplFixedArray bitarray',
-  6 => 'string bitarray',
+  0 => 'ALL',
+  1 => 'Array direct',
+  2 => 'SplFixedArray direct',
+  3 => 'String direct',
+  4 => 'Array packed',
+  5 => 'SplFixedArray packed',
+  6 => 'String packed',
   7 => 'Chdemko BitArray',
   8 => 'BitArray extension',
 ];
 
-$storage = $argv[1] ?? 0;
-if ($storage < 1 || $storage > count($storages)) {
+$storage = $argv[1] ?? -1;
+if (!isset($storages[$storage])) {
   printf("Usage: php %s %s\n", $argv[0], implode('|', array_keys($storages)));
   foreach ($storages as $k => $v) {
     echo "  $k: $v\n";
@@ -222,30 +223,48 @@ if ($storage < 1 || $storage > count($storages)) {
   exit(1);
 }
 
-//$limit=500000000;
+$limit = 500000000;
 $limit = 100000000;
+
 printf(
-  "Finding all primes below %s using '%s' storage...\n",
+  "Finding primes below %s - storage for %s bits is needed. Method: '%s' storage.\n",
   number_format($limit),
-  $storages[$storage]
+  number_format($limit / 2),
+  $storages[$storage],
 );
 
-$sieve = new Sieve($limit, $storage);
-$t = microtime(true);
-$sieve->build();
-$t = microtime(true) - $t;
+// Test single storage type or all types.
+$first = ($storage == 0) ? 1 : $storage;
+$last = ($storage == 0) ? array_key_last($storages) : $storage;
 
-$count = $sieve->report(0);
-printf(
-  "Found %s primes at %s million/second\n",
-  number_format($count),
-  number_format($count / 1000000 / $t, 2),
-);
+for ($i = $first; $i <= $last; $i++) {
 
-$mem = memory_get_peak_usage(true);
-printf("Peak memory used: %s MB\n", number_format($mem >> 20));
+  if ($first != $last) {
+    printf("%s: \n", $storages[$i]);
+  }
+
+  for ($j = 1; $j <= 3; $j++) {
+    memory_reset_peak_usage();
+    $sieve = new Sieve($limit, $i);
+    $t = microtime(true);
+    $sieve->build();
+    $t = microtime(true) - $t;
+    $mem = memory_get_peak_usage(true);
+
+    $count = $sieve->report(0);
+    unset($sieve);
+
+    printf(
+      "  [$j] Peak memory: %s MB. Speed: %s million/second. Found: %s primes.\n",
+      number_format($mem >> 20),
+      number_format($count / 1000000 / $t, 2),
+      number_format($count),
+    );
+
+    gc_collect_cycles();
+  }
+}
 exit(0);
 
 // ============================================================================= 
-
 // End of file
