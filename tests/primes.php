@@ -7,10 +7,11 @@ use chdemko\BitArray\BitArray as Chdemko_BitArray;
 
 class BitArray2 implements ArrayAccess, Countable
 {
-  private const BITS_PER_INTEGER = 8 * PHP_INT_SIZE;
-  private const INT_DIV_SHIFT = (PHP_INT_SIZE == 4) ? 5 : 6;
+  protected const BITS_PER_INT = 8 * PHP_INT_SIZE;
+  protected const DIVIDE_BY_64 = (PHP_INT_SIZE == 4) ? 5 : 6;
+  protected const MASK_64_BITS = self::BITS_PER_INT - 1;
 
-  private int $size;
+  protected int $size;
   protected mixed $data;
 
   public function __construct(int $size)
@@ -19,13 +20,12 @@ class BitArray2 implements ArrayAccess, Countable
       throw new InvalidArgumentException("Size must be greater than zero");
     }
     $this->size = $size;
-    echo "BitArray2 of size $size created. Bits per element: " . self::BITS_PER_INTEGER . "\n";
   }
 
   // ArrayAccess: check if index exists
   public function offsetExists($offset): bool
   {
-    return is_int($offset) && $offset >= 0 && $offset < $this->size;
+    return (is_int($offset) && $offset >= 0 && $offset < $this->size);
   }
 
   // ArrayAccess: unset value
@@ -38,19 +38,16 @@ class BitArray2 implements ArrayAccess, Countable
   // ArrayAccess: read value
   public function offsetGet($offset): bool
   {
-    //echo "base offsetGet called for offset $offset\n";
-    //return 0;
-    return (($this->data[$offset >> self::INT_DIV_SHIFT]) >> ($offset & (self::BITS_PER_INTEGER - 1))) & 1;
+    return (($this->data[$offset >> self::DIVIDE_BY_64]) >> ($offset & self::MASK_64_BITS)) & 1;
   }
 
   // ArrayAccess: write value
   public function offsetSet($offset, $value): void
   {
-    // Note: tried, but there doesn't seem to be any faster way to do this.
     if ($value) {
-      $this->data[$offset >> self::INT_DIV_SHIFT] |= (1 << ($offset & (self::BITS_PER_INTEGER - 1)));
+      $this->data[$offset >> self::DIVIDE_BY_64] |= (1 << ($offset & self::MASK_64_BITS));
     } else {
-      $this->data[$offset >> self::INT_DIV_SHIFT] &= ~(1 << ($offset & (self::BITS_PER_INTEGER - 1)));
+      $this->data[$offset >> self::DIVIDE_BY_64] &= ~(1 << ($offset & self::MASK_64_BITS));
     }
   }
 
@@ -66,7 +63,7 @@ class ArrayBitArray extends BitArray2
   public function __construct(int $size)
   {
     parent::__construct($size);
-    $this->data = array_fill(0, ceil($size / self::BITS_PER_INTEGER), 0);
+    $this->data = array_fill(0, ceil($size / self::BITS_PER_INT), 0);
   }
 }
 
@@ -75,7 +72,7 @@ class SplBitArray extends BitArray2
   public function __construct(int $size)
   {
     parent::__construct($size);
-    $this->data = new SplFixedArray(ceil($size / self::BITS_PER_INTEGER));
+    $this->data = new SplFixedArray(ceil($size / self::BITS_PER_INT));
   }
 }
 
@@ -96,7 +93,6 @@ class StringBitArray extends BitArray2
   // ArrayAccess: write value
   public function offsetSet($offset, $value): void
   {
-    // Note: tried, but there doesn't seem to be any faster way to do this.
     if ($value) {
       $this->data[$offset >> 3] = chr(ord($this->data[$offset >> 3]) | (1 << ($offset & 7)));
     } else {
@@ -115,47 +111,55 @@ class Sieve
     // Storage needed is half the limit (odd numbers only).
     $size = ($limit + 1) >> 1;
 
-    if ($storage == 1) {
-      // Standard PHP array (fast, but very memory hungry).
-      $sieve = array_fill(0, $size, 0);
-    } elseif ($storage == 2) {
-      // PHP SplFixedArray (fast, slightly less memory hungry).
-      $sieve = new SplFixedArray($size);
-    } elseif ($storage == 3) {
-      // PHP string as an array (fast, high memory usage).
-      $sieve = str_repeat('0', $size);
-    } elseif ($storage == 4) {
-      // Local StringBitArray class (slow, minimal memory usage).
-      $sieve = new StringBitArray($size);
-      //$sieve = new ArrayBitArray($size);
-    } elseif ($storage == 5) {
-      // Chdemko_BitArray (very slow, high memory usage).
-      $sieve = Chdemko_BitArray::fromString(str_repeat('0', $size));
-    } else {
-      // BitArray extension (very fast, minimal memory usage)
-      $sieve = new BitArray($size);
-    }
-
-    // Optimised Sieve of Eratosthenes.
-    $limit_sqrt = floor(sqrt($limit));
-    for ($n = 3; $n < $limit_sqrt; $n += 2) {
-      if ($sieve[$n >> 1] == false) {
-        // Flag multiples of $n as non-primes.
-        $idx = ($n * $n) >> 1;
-        $idx_last = ($limit - 1) >> 1;
-        for (; $idx <= $idx_last; $idx += $n) {
-          $sieve[$idx] = true;
-        }
-      }
+    switch ($storage) {
+      case 1:
+        $sieve = array_fill(0, $size, 0);
+        break;
+      case 2:
+        $sieve = new SplFixedArray($size);
+        break;
+      case 3:
+        $sieve = str_repeat('0', $size);
+        break;
+      case 4:
+        $sieve = new ArrayBitArray($size);
+        break;
+      case 5:
+        $sieve = new SplBitArray($size);
+        break;
+      case 6:
+        $sieve = new StringBitArray($size);
+        break;
+      case 7:
+        $sieve = Chdemko_BitArray::fromString(str_repeat('0', $size));
+        break;
+      default:
+        $sieve = new BitArray($size);
+        break;
     }
 
     $this->limit = $limit;
     $this->sieve = $sieve;
   }
 
+  // Optimised Sieve of Eratosthenes.
+  public function build() {
+    $limit_sqrt = floor(sqrt($this->limit));
+    for ($n = 3; $n < $limit_sqrt; $n += 2) {
+      if ($this->sieve[$n >> 1] == false) {
+        // Flag multiples of $n as non-primes.
+        $idx = ($n * $n) >> 1;
+        $idx_last = ($this->limit - 1) >> 1;
+        for (; $idx <= $idx_last; $idx += $n) {
+          $this->sieve[$idx] = true;
+        }
+      }
+    }
+  }
+
+  // Check results and show summary.
   public function report(int $print = 0)
   {
-    $sieve = $this->sieve;
     $limit = $this->limit;
 
     // Include the prime 2 in results.
@@ -163,7 +167,7 @@ class Sieve
     $last = $check = 2;
 
     for ($n = 3; $n < $limit; $n += 2) {
-      if (($sieve[$n >> 1]) == 0) {
+      if (($this->sieve[$n >> 1]) == 0) {
         $prime = $n;
         $count++;
         $check = (($check << 1) & 0x7fffffffffffffff) ^ $prime;
@@ -185,6 +189,9 @@ class Sieve
         throw new Exception("Failed verification checks");
       }
     }
+    else {
+      echo "No verification for limit $limit\n";
+    }
 
     return $count;
   }
@@ -199,13 +206,16 @@ $storages = [
   1 => 'array',
   2 => 'SplFixedArray',
   3 => 'string',
-  4 => 'string bitarray',
-  5 => 'Chdemko BitArray',
-  6 => 'BitArray extension',
+  4 => 'array bitarray',
+  5 => 'SplFixedArray bitarray',
+  6 => 'string bitarray',
+  7 => 'Chdemko BitArray',
+  8 => 'BitArray extension',
 ];
+
 $storage = $argv[1] ?? 0;
-if ($storage < 1 || $storage > 6) {
-  echo "Usage: php $argv[0] 1|2|3|4|5|6\n";
+if ($storage < 1 || $storage > count($storages)) {
+  printf("Usage: php %s %s\n", $argv[0], implode('|', array_keys($storages)));
   foreach ($storages as $k => $v) {
     echo "  $k: $v\n";
   }
@@ -220,8 +230,9 @@ printf(
   $storages[$storage]
 );
 
-$t = microtime(true);
 $sieve = new Sieve($limit, $storage);
+$t = microtime(true);
+$sieve->build();
 $t = microtime(true) - $t;
 
 $count = $sieve->report(0);
