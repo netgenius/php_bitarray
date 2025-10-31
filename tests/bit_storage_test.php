@@ -51,14 +51,10 @@ class BitArrayTest
     srand(42);
 
     for ($i = 0; $i <= $limit; $i++) {
-      rand(0, $limit);
-      rand(0, $limit) ^ rand(0, 1);
-      rand(0, $limit);
-      rand(0, $limit) ^ rand(0, 1);
-      rand(0, $limit);
-      rand(0, $limit) ^ rand(0, 1);
-      rand(0, $limit);
-      rand(0, $limit) ^ rand(0, 1);
+      rand(0, $limit); rand(0, $limit) ^ rand(0, 1);
+      rand(0, $limit); rand(0, $limit) ^ rand(0, 1);
+      rand(0, $limit); rand(0, $limit) ^ rand(0, 1);
+      rand(0, $limit); rand(0, $limit) ^ rand(0, 1);
     }
   }
 
@@ -82,7 +78,7 @@ class BitArrayTest
     $context = hash_init('md5');
 
     for ($i = 0; $i < $size; $i++) {
-      $bit = (string) (int) $this->bitStorage[$i]; // $this->bitStorage[$i] ? 1 : 0;
+      $bit = (string) (int) $this->bitStorage[$i];
       hash_update($context, $bit);
     }
 
@@ -192,4 +188,4 @@ for ($i = $first; $i <= $last; $i++) {
 exit(0);
 
 // ============================================================================= 
-// End of file
+// End of file.
