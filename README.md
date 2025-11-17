@@ -4,7 +4,7 @@
 Copyright 2025 Andy Inman.
 Contact: ainman@netgenius.co.uk
 
-Experimental code to investigate various methods of providing a bit array in PHP, able to handle many (tens of millions of) boolean value elements. We compare several methods available in standard PHP and a custom PHP extension to provide faster, more memory efficient storage.
+Experimental code to investigate various methods of providing a simple, direct access bit array in PHP, able to handle many (tens of millions of) boolean value elements. We compare several methods available in standard PHP and a custom PHP extension to provide faster, more memory efficient storage.
 
 The following storage methods were compared:
 
@@ -60,7 +60,8 @@ Memory usage and speed for 10 million bit-array elements, testing read/write ran
 ### All
 
 Test/compare all available storage types, 10 million bits, single run. This will take a while to complete!
-    `php tests/bit_storage_test.php 0 10000000 1`
+
+`php tests/bit_storage_test.php 0 10000000 1`
 
     Example output:
 
@@ -82,7 +83,8 @@ Test/compare all available storage types, 10 million bits, single run. This will
 
 ### String direct
 Test "string direct" storage, 10 million bits, three runs. 
-    `php tests/bit_storage_test.php 3 10000000 3`
+
+`php tests/bit_storage_test.php 3 10000000 3`
 
     Example output:
 
@@ -93,7 +95,8 @@ Test "string direct" storage, 10 million bits, three runs.
 
 ### String packed
 Test "string packed" storage, 10 million bits, three runs. 
-    `php tests/bit_storage_test.php 6 10000000 3`
+
+`php tests/bit_storage_test.php 6 10000000 3`
 
     Example output:
 
@@ -104,7 +107,8 @@ Test "string packed" storage, 10 million bits, three runs.
 
 ### PHP extension
 Test "BitArray extension" storage, 10 million bits, three runs. 
-    `php tests/bit_storage_test.php 7 10000000 3`
+
+`php tests/bit_storage_test.php 7 10000000 3`
 
     Example output:
 
