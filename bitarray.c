@@ -1,3 +1,11 @@
+/*
+    bitarray.c
+    A PHP extension providing a BitArray class for efficient storage of boolean values.
+    Copyright 2025 Andy Inman.
+    Contact: ainman@netgenius.co.uk
+*/
+
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif

@@ -1,3 +1,10 @@
+/*
+    bitarray.h
+    A PHP extension providing a BitArray class for efficient storage of boolean values.
+    Copyright 2025 Andy Inman.
+    Contact: ainman@netgenius.co.uk
+*/
+
 #ifndef PHP_BITARRAY_H
 #define PHP_BITARRAY_H
 

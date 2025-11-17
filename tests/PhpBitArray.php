@@ -4,6 +4,7 @@
  * PHP BitArray implementation.
  *
  * Copyright (c) 2025 Andy Inman <https://github.com/andy-netgenius>
+ * Contact: ainman@netgenius.co.uk
  * License: MIT
  */
 

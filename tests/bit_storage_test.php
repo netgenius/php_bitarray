@@ -150,6 +150,7 @@ $last = ($storage == 0) ? array_key_last($storages) : $storage;
 for ($i = $first; $i <= $last; $i++) {
 
   if ($first != $last) {
+    // We're testing multiple storage methods, show name of the current one.
     printf("%s: \n", $storages[$i]);
   }
 
@@ -175,7 +176,7 @@ for ($i = $first; $i <= $last; $i++) {
     // Calculate memory that would be needed by ideal storage.
     $mem_needed = $size / 8;
     printf(
-      "  [$j] Storage memory $mem: %s (%s%% overhead). Speed: %s million/second.\n",
+      "  [$j] Storage memory: %s (%s%% overhead). Speed: %s million/second.\n",
       ($mem < (1024 * 1024)) ? number_format($mem / 1024, 2) . " KB" : number_format($mem / 1024 / 1024, 2) . " MB",
       number_format((100 * $mem / $mem_needed) - 100),
       number_format(1000 * $size / $t_readwrite, 2),
