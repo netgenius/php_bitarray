@@ -1,10 +1,10 @@
 
-# PHP bitarray
+# PHP bitarray implementations
 
 Copyright 2025 Andy Inman.
 Contact: ainman@netgenius.co.uk
 
-Experimental code to investigate various methods of providing a bit array in PHP, able to handle many (tens of millions) of boolean value elements. We compare several methods available in standard PHP and a custom PHP extension to provide faster, more memory efficient storage.
+Experimental code to investigate various methods of providing a bit array in PHP, able to handle many (tens of millions of) boolean value elements. We compare several methods available in standard PHP and a custom PHP extension to provide faster, more memory efficient storage.
 
 The following storage methods were compared:
 
@@ -20,6 +20,7 @@ The following storage methods were compared:
 
 Notes:
 
+* The BitArray extension was written directly in C, and compiled with gcc second level optimisations enabled (-O2). No time was spent on manual optimisation, so the code itself may not be optimal.
 * Although we use only single bit true/false values here, the bit-packing approach could equally be applied to storing larger values. For example, values in the range of 0 to 7 could be stored in 3 bits.
 * Measured speeds here are likely to be considerably affected by memory cache. This is probably the main reason why the bit-packed storage methods generally outperform the direct methods.
 * Test environment: AMD Ryzen 7 5800H, 40 GB main RAM, Ubuntu 24.04.3 LTS, PHP 8.3.6 (cli).
@@ -34,6 +35,14 @@ Graphs showing memory usage and speed variation for a range of 10 million to 100
 ![Graph: memory usage vs data size](tests/assets/bit-array-memory.png "Memory")
 ![Graph: speed vs data size](tests/assets/bit-array-speed.png "Speed")
 
+### Conclusions
+
+   1. Unsurprisingly, the only storage methods which do not have a significant memory overhead are the *string packed* and *BitArray extension*.
+   2. Although the simplest to implement, the *standard array* and *SplFixedArray* methods both have a huge memory overhead, which makes them entirely unsuitable unless the required array size is small.
+   3. The *string direct* storage method strikes a balance of reasonable memory efficiency with performance and simplicity. However, performance is good only for an array size under 10 million elements, and drops rapidly with increasing array size. This is presumably due to how PHP stores very long strings.
+   4. The *string packed* storage provides memory efficiency with better performance than other methods available with standard PHP.
+   5. The *BitArray extension* is clearly the overall winner for both memory efficiency and performance, assuming that use of a custom PHP extension is an acceptable design decision. It handles array size of 100 million elements with excellent speed and no memory overhead.
+
 ### Build, test and install
 
 Steps to compile and install the custom bitarray PHP extension. You can skip this if you want to compare only the other (standard PHP) storage methods outlined above.
@@ -43,14 +52,6 @@ Steps to compile and install the custom bitarray PHP extension. You can skip thi
     && make \
     && echo "Running sudo make install:" && sudo make install \
     && make test TESTS=tests/*.phpt
-
-### Conclusions
-
-   1. Unsurprisingly, the only storage methods which do not have a significant memory overhead are the *string packed* and *BitArray extension*.
-   2. Although the simplest to implement, the *standard array* and *SplFixedArray* methods both have a huge memory overhead, which makes them entirely unsuitable unless the required array size is small.
-   3. The *string direct* storage method strikes a balance of reasonable memory efficiency with performance and simplicity. However, performance is good only for an array size under 10 million elements, and drops rapidly with increasing array size. This is presumably due to how PHP stores very long strings.
-   4. The *string packed* storage provides memory efficiency with better performance than other methods available with standard PHP.
-   5. The *BitArray extension* is clearly the overall winner for both memory efficiency and performance, assuming that use of a custom PHP extension is an acceptable design decision. It handles array size of 100 million elements with excellent speed and no memory overhead.
 
 ### Performance and memory comparison of storage types
 
