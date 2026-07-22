@@ -1,9 +1,6 @@
 
 # PHP bitarray implementations
 
-Copyright 2025 Andy Inman.
-Contact: ainman@netgenius.co.uk
-
 Experimental code to investigate various methods of providing a simple, direct access bit array in PHP, able to handle many (tens of millions of) boolean value elements. We compare several methods available in standard PHP and a custom PHP extension to provide faster, more memory efficient storage.
 
 The following storage methods were compared:
